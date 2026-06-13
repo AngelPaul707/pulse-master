@@ -1,42 +1,76 @@
 import os
-import smtplib
+import requests
+from datetime import date
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-EMAIL_TO = os.getenv("EMAIL_TO")
+# ==========================================
+# FUNCTION 1: Fetch Live Weather Details
+# ==========================================
+def get_weather(city="Thiruvananthapuram"):
+    """Fetch today's weather as a one-line text summary."""
+    url = f"https://wttr.in/{city}?format=3"
+    try:
+        # Give up trying to connect after 10 seconds so the script doesn't hang forever
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.text.strip()
+    except Exception as e:
+        return f"Weather unavailable ({e})"
 
-if not EMAIL_USER:
-    raise Exception("EMAIL_USER secret is missing")
+# ==========================================
+# FUNCTION 2: Fetch a Motivational Quote
+# ==========================================
+def get_quote():
+    """Fetch a random motivational quote from ZenQuotes API."""
+    url = "https://zenquotes.io/api/random"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # ZenQuotes returns a list containing a dict: [{"q": "text", "a": "author"}]
+        quote = data[0]['q']
+        author = data[0]['a']
+        return f'"{quote}" — {author}'
+    except Exception as e:
+        return f"Quote unavailable ({e})"
 
-if not EMAIL_PASS:
-    raise Exception("EMAIL_PASS secret is missing")
+# ==========================================
+# FUNCTION 3: Build the Text Block Summary
+# ==========================================
+def build_summary():
+    """Assemble the final daily summary text block using a clean f-string."""
+    today = date.today().strftime("%A, %d %B %Y")
+    weather = get_weather()
+    quote = get_quote()
+    
+    summary = f"""
+====================================
+PULSE — Daily Summary
+{today}
+====================================
 
-if not EMAIL_TO:
-    raise Exception("EMAIL_TO secret is missing")
+WEATHER
+{weather}
 
-subject = "Daily Pulse Report"
-body = """
-Good Morning!
-
-This email was sent automatically by Pulse MasterKit using GitHub Actions.
-
-Have a great day!
+TODAY'S QUOTE
+{quote}
+====================================
 """
+    return summary
 
-message = f"Subject: {subject}\n\n{body}"
+# ==========================================
+# FUNCTION 4: Run & Export the Artifact
+# ==========================================
+def run():
+    """Main entry point to execute the bot and save the artifact file."""
+    summary = build_summary()
+    print(summary) # Shows up beautifully in our GitHub Actions execution log
+    
+    # Save it to a downloadable text file
+    with open("daily_summary.txt", "w", encoding="utf-8") as f:
+        f.write(summary)
+    print("Pulse ran successfully: daily_summary.txt generated.")
 
-try:
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASS)
-        server.sendmail(
-            EMAIL_USER,
-            EMAIL_TO,
-            message
-        )
-
-    print("Email sent successfully!")
-
-except Exception as e:
-    print(f"Error: {e}")
-    raise
+# The entry guard ensures this code only runs when executed directly
+if __name__ == "__main__":
+    run()
